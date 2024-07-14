@@ -62,7 +62,7 @@ class P2PChat:
                 if data.startswith("CLIPBOARD:"):
                     if self.clipboard_var.get():
                         pyperclip.copy(data[10:])
-                        self.display_message("Received clipboard content")
+                        self.display_message(f"Received clipboard content: {data[10:]}")
                 else:
                     self.display_message(f"Peer: {data}")
             except:
@@ -106,7 +106,7 @@ class P2PChat:
         if self.peer_socket and self.clipboard_var.get():
             try:
                 self.peer_socket.sendall(f"CLIPBOARD:{content}".encode())
-                self.display_message("Clipboard content sent")
+                self.display_message(f"Clipboard content sent: {content}")
             except:
                 self.display_message("Failed to send clipboard content")
                 self.peer_socket = None
