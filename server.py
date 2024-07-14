@@ -1,6 +1,7 @@
 import socket
 import threading
 import pyperclip
+import time
 
 def handle_client(conn):
     while True:
@@ -46,7 +47,12 @@ def send_to_client(data):
 
 if __name__ == "__main__":
     server_thread = threading.Thread(target=start_server)
+    server_thread.daemon = True
     server_thread.start()
 
     monitor_thread = threading.Thread(target=monitor_clipboard)
+    monitor_thread.daemon = True
     monitor_thread.start()
+
+    while True:
+        time.sleep(1)

