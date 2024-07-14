@@ -2,6 +2,8 @@ import socket
 import threading
 import tkinter as tk
 from tkinter import scrolledtext
+import pyperclip
+import time
 
 class P2PChat:
     def __init__(self, host, port):
@@ -13,6 +15,7 @@ class P2PChat:
         self.socket.bind((self.host, self.port))
         self.socket.listen(1)
         self.peer_socket = None
+        self.last_clipboard = pyperclip.paste()
 
         self.gui = tk.Tk()
         self.gui.title(f"P2P Chat - {self.host}:{self.port}")
@@ -32,7 +35,12 @@ class P2PChat:
         self.connect_button = tk.Button(self.connect_frame, text="Connect", command=self.connect_to_peer)
         self.connect_button.pack(side=tk.LEFT, padx=5)
 
+        self.clipboard_var = tk.IntVar()
+        self.clipboard_check = tk.Checkbutton(self.gui, text="Enable Clipboard Sharing", variable=self.clipboard_var)
+        self.clipboard_check.pack(pady=5)
+
         threading.Thread(target=self.accept_connections, daemon=True).start()
+        threading.Thread(target=self.monitor_clipboard, daemon=True).start()
 
     def accept_connections(self):
         while True:
@@ -51,7 +59,12 @@ class P2PChat:
                 data = conn.recv(1024).decode()
                 if not data:
                     break
-                self.display_message(f"Peer: {data}")
+                if data.startswith("CLIPBOARD:"):
+                    if self.clipboard_var.get():
+                        pyperclip.copy(data[10:])
+                        self.display_message("Received clipboard content")
+                else:
+                    self.display_message(f"Peer: {data}")
             except:
                 break
         conn.close()
@@ -88,6 +101,24 @@ class P2PChat:
                 self.peer_address = None
         else:
             self.display_message("Not connected to a peer")
+
+    def send_clipboard(self, content):
+        if self.peer_socket and self.clipboard_var.get():
+            try:
+                self.peer_socket.sendall(f"CLIPBOARD:{content}".encode())
+                self.display_message("Clipboard content sent")
+            except:
+                self.display_message("Failed to send clipboard content")
+                self.peer_socket = None
+                self.peer_address = None
+
+    def monitor_clipboard(self):
+        while True:
+            current_clipboard = pyperclip.paste()
+            if current_clipboard != self.last_clipboard:
+                self.last_clipboard = current_clipboard
+                self.send_clipboard(current_clipboard)
+            time.sleep(1)
 
     def display_message(self, message):
         self.chat_area.config(state='normal')
