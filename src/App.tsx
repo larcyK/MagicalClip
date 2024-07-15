@@ -1,99 +1,103 @@
-import { createSignal } from "solid-js";
-import logo from "./assets/logo.svg";
-import { invoke } from "@tauri-apps/api/tauri";
-import { open } from '@tauri-apps/api/dialog'
-import { writeText, readText } from '@tauri-apps/api/clipboard';
-import { emit, listen } from '@tauri-apps/api/event';
-import "./App.css";
+import { createSignal, onMount } from 'solid-js';
+import { invoke } from '@tauri-apps/api/tauri';
+import { listen } from '@tauri-apps/api/event';
 
 function App() {
-  const [greetMsg, setGreetMsg] = createSignal("");
-  const [name, setName] = createSignal("");
-  const [clipboard, setClipboard] = createSignal("");
+  const [messages, setMessages] = createSignal<string[]>([]);
+  const [inputMessage, setInputMessage] = createSignal('');
+  const [peerIp, setPeerIp] = createSignal('');
+  const [peerPort, setPeerPort] = createSignal('');
+  const [isClipboardSharing, setIsClipboardSharing] = createSignal(false);
 
-  async function greet() {
-    setGreetMsg(await invoke("greet", { name: name() }));
-  }
-
-  async function setClipboardText() {
-    await writeText(clipboard());
-  }
-
-  function emitMessage() {
-    emit('front-to-back', "hello from front")
-  }
-
-  function selectFile() {
-    console.log('select file');
-    open({ directory: false, multiple: false }).then((result) => {
-      console.log(result);
-    }).catch((error) => {
-      console.error(error);
+  onMount(async () => {
+    await invoke('start_server', { port: 5000 });
+    
+    await listen('message_received', (event) => {
+      setMessages((prev) => [...prev, `Peer: ${event.payload}`]);
     });
-  }
 
-  let unlisten: any;
-  async function f() {
-    unlisten = await listen('back-to-front', event => {
-      console.log(`back-to-front ${event.payload} ${new Date()}`)
+    await listen('clipboard_received', () => {
+      setMessages((prev) => [...prev, 'Received clipboard content']);
     });
-  }
-  f();
+  });
+
+  const sendMessage = async () => {
+    if (inputMessage()) {
+      try {
+        await invoke('send_message', { message: inputMessage() });
+        setMessages((prev) => [...prev, `You: ${inputMessage()}`]);
+        setInputMessage('');
+      } catch (error) {
+        setMessages((prev) => [...prev, `Error: ${error}`]);
+      }
+    }
+  };
+
+  const connectToPeer = async () => {
+    if (peerIp() && peerPort()) {
+      try {
+        await invoke('connect_to_peer', { ip: peerIp(), port: parseInt(peerPort()) });
+        setMessages((prev) => [...prev, `Connected to peer at ${peerIp()}:${peerPort()}`]);
+      } catch (error) {
+        setMessages((prev) => [...prev, `Connection error: ${error}`]);
+      }
+    }
+  };
+
+  const toggleClipboardSharing = async (event: Event & { target: HTMLInputElement }) => {
+    setIsClipboardSharing(event.target.checked);
+    if (event.target.checked) {
+      startClipboardMonitoring();
+    }
+  };
+
+  const startClipboardMonitoring = async () => {
+    while (isClipboardSharing()) {
+      try {
+        await invoke('send_clipboard');
+      } catch (error) {
+        console.error('Failed to send clipboard:', error);
+      }
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    }
+  };
 
   return (
-    <div class="container">
-      <h1>Welcome to Tauri!</h1>
-
-      <div class="row">
-        <a href="https://vitejs.dev" target="_blank">
-          <img src="/vite.svg" class="logo vite" alt="Vite logo" />
-        </a>
-        <a href="https://tauri.app" target="_blank">
-          <img src="/tauri.svg" class="logo tauri" alt="Tauri logo" />
-        </a>
-        <a href="https://solidjs.com" target="_blank">
-          <img src={logo} class="logo solid" alt="Solid logo" />
-        </a>
+    <div>
+      <div style={{ height: '300px', 'overflow-y': 'scroll', border: '1px solid #ccc', padding: '10px', 'margin-bottom': '10px' }}>
+        {messages().map((message, index) => (
+          <div>{message}</div>
+        ))}
       </div>
-
-      <p>Click on the Tauri, Vite, and Solid logos to learn more.</p>
-
-      <div class="column">
-      <form
-        class="row"
-        onSubmit={(e) => {
-          e.preventDefault();
-          greet();
-        }}
-      >
+      <input
+        type="text"
+        value={inputMessage()}
+        onInput={(e) => setInputMessage(e.target.value)}
+        placeholder="Enter message"
+      />
+      <button onClick={sendMessage}>Send</button>
+      <br />
+      <input
+        type="text"
+        value={peerIp()}
+        onInput={(e) => setPeerIp(e.target.value)}
+        placeholder="Peer IP"
+      />
+      <input
+        type="number"
+        value={peerPort()}
+        onInput={(e) => setPeerPort(e.target.value)}
+        placeholder="Peer Port"
+      />
+      <button onClick={connectToPeer}>Connect</button>
+      <br />
+      <label>
         <input
-          id="greet-input"
-          onChange={(e) => setName(e.currentTarget.value)}
-          placeholder="Enter a name..."
-        />
-        <button type="submit">Greet</button>
-      </form>
-
-      <form
-        class="row"
-        onSubmit={(e) => {
-          e.preventDefault();
-          setClipboardText();
-        }}
-      >
-        <input
-          id="greet-input"
-          onChange={(e) => setClipboard(e.currentTarget.value)}
-          placeholder="Enter text to set clipboard..."
-        />
-        <button type="submit">Set Clipboard</button>
-      </form>
-
-      <button onClick={selectFile}>Click to open dialog</button>
-      <button onClick={emitMessage}>Click to emit message</button>
-
-      <p>{greetMsg()}</p>
-      </div>
+          type="checkbox"
+          checked={isClipboardSharing()}
+          onChange={toggleClipboardSharing}
+        /> Enable Clipboard Sharing
+      </label>
     </div>
   );
 }
