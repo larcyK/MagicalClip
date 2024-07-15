@@ -3,6 +3,7 @@ import logo from "./assets/logo.svg";
 import { invoke } from "@tauri-apps/api/tauri";
 import { open } from '@tauri-apps/api/dialog'
 import { writeText, readText } from '@tauri-apps/api/clipboard';
+import { emit, listen } from '@tauri-apps/api/event';
 import "./App.css";
 
 function App() {
@@ -11,12 +12,15 @@ function App() {
   const [clipboard, setClipboard] = createSignal("");
 
   async function greet() {
-    // Learn more about Tauri commands at https://tauri.app/v1/guides/features/command
     setGreetMsg(await invoke("greet", { name: name() }));
   }
 
   async function setClipboardText() {
     await writeText(clipboard());
+  }
+
+  function emitMessage() {
+    emit('front-to-back', "hello from front")
   }
 
   function selectFile() {
@@ -27,6 +31,14 @@ function App() {
       console.error(error);
     });
   }
+
+  let unlisten: any;
+  async function f() {
+    unlisten = await listen('back-to-front', event => {
+      console.log(`back-to-front ${event.payload} ${new Date()}`)
+    });
+  }
+  f();
 
   return (
     <div class="container">
@@ -46,6 +58,7 @@ function App() {
 
       <p>Click on the Tauri, Vite, and Solid logos to learn more.</p>
 
+      <div class="column">
       <form
         class="row"
         onSubmit={(e) => {
@@ -77,8 +90,10 @@ function App() {
       </form>
 
       <button onClick={selectFile}>Click to open dialog</button>
+      <button onClick={emitMessage}>Click to emit message</button>
 
       <p>{greetMsg()}</p>
+      </div>
     </div>
   );
 }
