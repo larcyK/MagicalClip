@@ -9,6 +9,34 @@ import {
 } from "@hope-ui/solid";
 import ClipboardHistoryCard from "./ClipboardHistoryCard";
 
+function areClipboardDataArraysEqual(arr1: commands.ClipboardData[], arr2: commands.ClipboardData[]): boolean {
+  if (arr1.length !== arr2.length) return false;
+
+  const map1 = new Map<string, commands.ClipboardData>();
+  const map2 = new Map<string, commands.ClipboardData>();
+
+  for (const item of arr1) {
+    map1.set(item.uuid, item);
+  }
+
+  for (const item of arr2) {
+    map2.set(item.uuid, item);
+  }
+
+  if (map1.size !== map2.size) return false;
+
+  for (const [uuid, data1] of map1.entries()) {
+    const data2 = map2.get(uuid);
+    if (!data2) return false;
+
+    if (data1.data_type !== data2.data_type || data1.data !== data2.data || data1.datetime !== data2.datetime) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
 function App() {
   const [address, setAddress] = createSignal("");
   const [port, setPort] = createSignal(5000);
@@ -51,7 +79,10 @@ function App() {
   onMount(() => {
     setInterval(async () => {
       const history = await commands.getClipboardHistory();
-      setClipboardHistory(history);
+      const currentHistory = clipboardHistory();
+      if (!areClipboardDataArraysEqual(history, currentHistory)) {
+        setClipboardHistory(history);
+      }
     }, 100);
   });
 

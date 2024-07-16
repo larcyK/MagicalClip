@@ -1,4 +1,4 @@
-import { Component } from 'solid-js';
+import { Component, createSignal } from 'solid-js';
 import './ClipboardHistoryCard.css';
 import { ClipboardData } from './bindings';
 import { 
@@ -39,16 +39,25 @@ interface ClipboardHistoryCardProps {
 const ClipboardHistoryCard: Component<ClipboardHistoryCardProps> = (props) => {
   const date = parseRFC3339(props.clipboardData.datetime);
   const formattedDate = formatDate(date);
+  const [isCopied, setIsCopied] = createSignal(false);
+
+  function onCopy() {
+    props.onCopy();
+    setIsCopied(true);
+    setTimeout(() => setIsCopied(false), 5000);
+  }
 
   return (
     <HStack width="100%" spacing="$4" padding="$4"  class="clipboard-history-card">
-      <Center height="50px" fontSize="12px">
+      <Center height="50px" fontSize="14px">
         {formattedDate}
       </Center>
       <Container class="card-content" style={{"text-align": "left"}}>
         {props.clipboardData.data}
       </Container>
-      <button onClick={props.onCopy} class="common-button">📋</button>
+      <button onClick={onCopy} class="common-button" disabled={isCopied()}>
+        {isCopied() ? "✅" : "📋"}
+      </button>
       <button onClick={props.onDelete} class="common-button">🗑️</button>
     </HStack>
   );
