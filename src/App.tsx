@@ -90,8 +90,6 @@ function App() {
     <div class="container">
       <h1>Magical Clip</h1>
 
-      <p>Click on the Tauri, Vite, and Solid logos to learn more.</p>
-
       <VStack gap="20px">
         <form
           onSubmit={(e) => {
@@ -117,9 +115,6 @@ function App() {
             <button type="submit" class="common-button">Connect</button>
           </HStack>
         </form>
-
-        <button onClick={selectFile} class="common-button">Click to open dialog</button>
-        <button onClick={startListening} class="common-button">Click to start listening</button>
 
         <VStack gap="10px" width="95%">
           <For each={clipboardHistory()}>

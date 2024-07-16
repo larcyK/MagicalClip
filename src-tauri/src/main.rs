@@ -62,15 +62,8 @@ async fn monitor_clipboard() {
         if current_clipboard != last_clipboard {
             println!("Clipboard changed: {}", current_clipboard);
             {
-                let mut state = APP_STATE.lock().await;
-                state.send_data_queue.push(current_clipboard.as_bytes().to_vec());
-                state.clipboard_history.push(ClipboardData {
-                    data_type: ClipboardType::Text,
-                    data: current_clipboard.clone(),
-                    datetime: Utc::now().to_rfc3339(),
-                    uuid: Uuid::new_v4().to_string()
-                });
-                state.last_clipboard = current_clipboard.clone();
+                add_clipboard_data(current_clipboard.as_bytes().to_vec()).await;
+                update_clipboard(current_clipboard.as_bytes().to_vec()).await;
             }
         }
         tokio::time::sleep(std::time::Duration::from_millis(100)).await;
@@ -87,6 +80,19 @@ async fn update_clipboard(data: Vec<u8>) {
     }
 }
 
+async fn add_clipboard_data(data: Vec<u8>) {
+    let text = std::str::from_utf8(&data).unwrap();
+    {
+        let mut state = APP_STATE.lock().await;
+        state.clipboard_history.push(ClipboardData {
+            data_type: ClipboardType::Text,
+            data: text.to_string(),
+            datetime: Utc::now().to_rfc3339(),
+            uuid: Uuid::new_v4().to_string()
+        });
+    }
+}
+
 async fn process_tcp_stream(mut stream: TcpStream) {
     let mut buf_reader = BufReader::new(&mut stream);
     loop {
@@ -100,8 +106,10 @@ async fn process_tcp_stream(mut stream: TcpStream) {
                 let data = buf[..n].to_vec();
                 println!("Received {} bytes", n);
                 println!("Data: {:?}", std::str::from_utf8(&data));
-                let mut clipboard = Clipboard::new().unwrap();
-                clipboard.set_text(std::str::from_utf8(&data).unwrap()).unwrap();
+                {
+                    add_clipboard_data(data.clone()).await;
+                    update_clipboard(String::from_utf8(data.clone()).unwrap().as_bytes().to_vec()).await;
+                }
             }
             Err(e) => {
                 println!("Failed to read from socket; err = {:?}", e);
