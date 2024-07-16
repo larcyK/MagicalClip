@@ -22,5 +22,13 @@ export function getClipboardHistory() {
     return invoke()<ClipboardData[]>("get_clipboard_history")
 }
 
-export type ClipboardData = { data_type: ClipboardType; data: string; datetime: string }
+export function deleteClipboardHistory(uuid: string) {
+    return invoke()<null>("delete_clipboard_history", { uuid })
+}
+
+export function copyClipboardFrom(uuid: string) {
+    return invoke()<null>("copy_clipboard_from", { uuid })
+}
+
 export type ClipboardType = "Text" | "Image" | "File"
+export type ClipboardData = { uuid: string; data_type: ClipboardType; data: string; datetime: string }

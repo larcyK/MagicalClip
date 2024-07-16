@@ -1,9 +1,13 @@
 import { createSignal, For, onMount } from "solid-js";
-import logo from "./assets/logo.svg";
 import { open } from '@tauri-apps/api/dialog'
 import { listen } from '@tauri-apps/api/event';
 import "./App.css";
 import * as commands from "./bindings";
+import {
+  HStack,
+  VStack,
+} from "@hope-ui/solid";
+import ClipboardHistoryCard from "./ClipboardHistoryCard";
 
 function App() {
   const [address, setAddress] = createSignal("");
@@ -17,6 +21,14 @@ function App() {
 
   async function startListening() {
     await commands.startListening();
+  }
+
+  async function copyClipboardFrom(uuid: string) {
+    await commands.copyClipboardFrom(uuid);
+  }
+
+  async function deleteClipboardHistory(uuid: string) {
+    await commands.deleteClipboardHistory(uuid);
   }
 
   function selectFile() {
@@ -45,56 +57,57 @@ function App() {
 
   return (
     <div class="container">
-      <h1>Welcome to Tauri!</h1>
-
-      <div class="row">
-        <a href="https://vitejs.dev" target="_blank">
-          <img src="/vite.svg" class="logo vite" alt="Vite logo" />
-        </a>
-        <a href="https://tauri.app" target="_blank">
-          <img src="/tauri.svg" class="logo tauri" alt="Tauri logo" />
-        </a>
-        <a href="https://solidjs.com" target="_blank">
-          <img src={logo} class="logo solid" alt="Solid logo" />
-        </a>
-      </div>
+      <h1>Magical Clip</h1>
 
       <p>Click on the Tauri, Vite, and Solid logos to learn more.</p>
 
-      <div class="column">
-      <form
-        class="row"
-        onSubmit={(e) => {
-          e.preventDefault();
-          connect();
-        }}
-      >
-        <input
-          id="address-input"
-          onChange={(e) => setAddress(e.currentTarget.value)}
-          placeholder="Enter a server address..."
-        />
+      <VStack gap="20px">
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            connect();
+          }}
+        >
+          <HStack gap="10px">
+            <input
+              class="common-input"
+              id="address-input"
+              onChange={(e) => setAddress(e.currentTarget.value)}
+              placeholder="Enter a server address..."
+            />
 
-        <input
-          id="port-input"
-          onChange={(e) => setPort(Number(e.currentTarget.value))}
-          placeholder="Enter a server port..."
-        />
+            <input
+              class="common-input"
+              id="port-input"
+              onChange={(e) => setPort(Number(e.currentTarget.value))}
+              placeholder="Enter a server port..."
+            />
 
-        <button type="submit">Connect</button>
-      </form>
+            <button type="submit">Connect</button>
+          </HStack>
+        </form>
 
-      <button onClick={selectFile}>Click to open dialog</button>
-      <button onClick={startListening}>Click to start listening</button>
+        <button onClick={selectFile} class="common-button">Click to open dialog</button>
+        <button onClick={startListening} class="common-button">Click to start listening</button>
 
-      <ul>
-        <For each={clipboardHistory()}>
-          {item => (
-            <li>{item.data}</li>
-          )}
-        </For>
-      </ul>
-      </div>
+        <VStack gap="10px" width="95%">
+          <For each={clipboardHistory()}>
+            {item => (
+              <ClipboardHistoryCard
+                clipboardData={item}
+                onCopy={() => {
+                  console.log("copy");
+                  copyClipboardFrom(item.uuid);
+                }}
+                onDelete={() => {
+                  console.log("delete");
+                  deleteClipboardHistory(item.uuid);
+                }}
+              />
+            )}
+          </For>
+        </VStack>
+      </VStack>
     </div>
   );
 }

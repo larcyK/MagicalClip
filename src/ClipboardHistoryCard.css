@@ -1,0 +1,40 @@
+.clipboard-history-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.clipboard-history-card {
+    background: #fff;
+    border-radius: 5px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+}
+
+.card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.card-date {
+    flex-grow: 1;
+}
+
+.card-actions {
+    display: flex;
+    gap: 5px;
+}
+
+.card-actions .action-button {
+    background: none;
+    border: none;
+    cursor: pointer;
+}
+
+.card-content {
+    margin-top: 10px;
+}

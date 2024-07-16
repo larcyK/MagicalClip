@@ -10,6 +10,7 @@ use tokio::{
 };
 use arboard::Clipboard;
 use chrono::{DateTime, Utc};
+use uuid::Uuid;
 use std::sync::{mpsc, Arc};
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
@@ -23,6 +24,7 @@ enum ClipboardType {
 
 #[derive(Clone, Serialize, Deserialize, Debug, specta::Type)]
 struct ClipboardData {
+    uuid: String,
     data_type: ClipboardType,
     data: String,
     datetime: String
@@ -54,7 +56,8 @@ async fn monitor_clipboard() {
             APP_STATE.lock().await.clipboard_history.push(ClipboardData {
                 data_type: ClipboardType::Text,
                 data: current_clipboard.clone(),
-                datetime: Utc::now().to_rfc3339()
+                datetime: Utc::now().to_rfc3339(),
+                uuid: Uuid::new_v4().to_string()
             });
             last_clipboard = current_clipboard;
         }
@@ -156,12 +159,29 @@ async fn get_clipboard_history() -> Vec<ClipboardData> {
     state.clipboard_history.clone()
 }
 
+#[tauri::command]
+#[specta::specta]
+async fn delete_clipboard_history(uuid: String) {
+    let mut state = APP_STATE.lock().await;
+    state.clipboard_history.retain(|data| data.uuid != uuid);
+}
+
+#[tauri::command]
+#[specta::specta]
+async fn copy_clipboard_from(uuid: String) {
+    let state = APP_STATE.lock().await;
+    let data = state.clipboard_history.iter().find(|data| data.uuid == uuid).unwrap();
+    update_clipboard(data.data.as_bytes().to_vec());
+}
+
 #[test]
 fn export_bindings() {
     ts::export(collect_types![
         start_listening,
         connect,
-        get_clipboard_history
+        get_clipboard_history,
+        delete_clipboard_history,
+        copy_clipboard_from
     ], 
     "../src/bindings.ts")
     .unwrap();
@@ -201,7 +221,9 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             start_listening,
             connect,
-            get_clipboard_history
+            get_clipboard_history,
+            delete_clipboard_history,
+            copy_clipboard_from
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

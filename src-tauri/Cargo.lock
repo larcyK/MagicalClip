@@ -1689,6 +1689,7 @@ dependencies = [
  "tauri-build",
  "tauri-specta",
  "tokio",
+ "uuid",
 ]
 
 [[package]]
