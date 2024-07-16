@@ -2,21 +2,18 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod clipboard;
+mod tcp;
 
-use clipboard::{add_clipboard_data, update_clipboard, ClipboardData};
+use clipboard::{ClipboardData};
 use specta::collect_types;
 use tauri::Manager;
 use tauri_specta::ts;
+use tcp::start_listening;
 use tokio::{
-    io::{AsyncWriteExt, BufReader}, 
-    net::{TcpListener, TcpStream},
     sync::Mutex
 };
-use uuid::Uuid;
-use core::time;
 use std::sync::Arc;
 use lazy_static::lazy_static;
-use serde::{Deserialize, Serialize};
 
 struct AppState {
     last_clipboard: String,
@@ -32,121 +29,13 @@ lazy_static! {
     }));
 }
 
-pub async fn push_data_to_send_queue(data: Vec<u8>) {
-    let mut state = APP_STATE.lock().await;
-    state.send_data_queue.push(data);
-}
-
-async fn process_tcp_stream(mut stream: TcpStream) {
-    let mut buf_reader = BufReader::new(&mut stream);
-    loop {
-        let buf = &mut [0; 1 << 16];
-        match stream.try_read(buf) {
-            Ok(n) => {
-                if n == 0 {
-                    println!("Connection closed by server");
-                    break;
-                }
-                let data = buf[..n].to_vec();
-                println!("Received {} bytes", n);
-                println!("Data: {:?}", std::str::from_utf8(&data));
-                {
-                    add_clipboard_data(data.clone(), None).await;
-                    update_clipboard(String::from_utf8(data.clone()).unwrap().as_bytes().to_vec()).await;
-                }
-            }
-            Err(e) => {
-                println!("Failed to read from socket; err = {:?}", e);
-            }
-        }
-
-        let mut data_to_send = Vec::new();
-        {
-            let mut state = APP_STATE.lock().await;
-            while let Some(data) = state.send_data_queue.pop() {
-                data_to_send.push(data);
-            }
-        }
-
-        for data in data_to_send {
-            match stream.write_all(&data).await {
-                Ok(_) => println!("Sent {} bytes", data.len()),
-                Err(e) => {
-                    println!("Failed to write to socket; err = {:?}", e);
-                    break;
-                }
-            }
-        }
-
-        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-    }
-}
-
-#[tauri::command]
-#[specta::specta]
-async fn connect(address: String, port: u16) -> Result<(), String> {
-    println!("Connecting to server at {}:{}", address, port);
-    let addr = format!("{}:{}", address, port);
-    let stream = match TcpStream::connect(&addr).await {
-        Ok(stream) => stream,
-        Err(err) => return Err(err.to_string()),
-    };
-    tokio::spawn(async move {
-        process_tcp_stream(stream).await;
-    });
-    Ok(())
-}
-
-#[tauri::command]
-#[specta::specta]
-async fn start_listening() -> Result<(), String> {
-    println!("Starting server...");
-    let listener = match TcpListener::bind("0.0.0.0:8080").await {
-        Ok(listener) => listener,
-        Err(err) => return Err(err.to_string()),
-    };
-    
-    loop {
-        match listener.accept().await {
-
-            Ok((stream, addr)) => {
-                println!("Connected to server at {}", addr);
-                tokio::spawn(async move {
-                    process_tcp_stream(stream).await;
-                });
-            }
-            Err(e) => {
-                println!("Failed to connect to server; err = {:?}", e);
-            }
-        };
-
-        // Wait for a second before attempting to reconnect
-        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-        println!("Attempting to reconnect...");
-    }
-}
-
-#[tauri::command]
-#[specta::specta]
-async fn get_clipboard_history() -> Vec<ClipboardData> {
-    let state = APP_STATE.lock().await;
-    state.clipboard_history.clone()
-}
-
-#[tauri::command]
-#[specta::specta]
-async fn delete_clipboard_history(uuid: String) {
-    let mut state = APP_STATE.lock().await;
-    state.clipboard_history.retain(|data| data.uuid != uuid);
-}
-
 #[test]
 fn export_bindings() {
     ts::export(collect_types![
-        start_listening,
-        connect,
-        get_clipboard_history,
-        delete_clipboard_history,
+        tcp::start_listening,
+        tcp::tcp_connect,
+        clipboard::get_clipboard_history,
+        clipboard::delete_clipboard_history,
         clipboard::copy_clipboard_from
     ], 
     "../src/bindings.ts")
@@ -185,10 +74,10 @@ fn main() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
-            start_listening,
-            connect,
-            get_clipboard_history,
-            delete_clipboard_history,
+            tcp::start_listening,
+            tcp::tcp_connect,
+            clipboard::get_clipboard_history,
+            clipboard::delete_clipboard_history,
             clipboard::copy_clipboard_from
         ])
         .run(tauri::generate_context!())

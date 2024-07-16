@@ -3,7 +3,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{push_data_to_send_queue, APP_STATE};
+use crate::{tcp::push_data_to_send_queue, APP_STATE};
 
 #[derive(Clone, Serialize, Deserialize, Debug, specta::Type)]
 pub enum ClipboardType {
@@ -93,4 +93,18 @@ pub async fn copy_clipboard_from(uuid: String) {
     } else {
         println!("Data with UUID {} not found", uuid);
     }
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn get_clipboard_history() -> Vec<ClipboardData> {
+    let state = APP_STATE.lock().await;
+    state.clipboard_history.clone()
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn delete_clipboard_history(uuid: String) {
+    let mut state = APP_STATE.lock().await;
+    state.clipboard_history.retain(|data| data.uuid != uuid);
 }
