@@ -114,7 +114,7 @@ function App() {
               placeholder="Enter a server port..."
             />
 
-            <button type="submit">Connect</button>
+            <button type="submit" class="common-button">Connect</button>
           </HStack>
         </form>
 
