@@ -76,6 +76,9 @@ function App() {
       const history = await commands.getClipboardHistory();
       const currentHistory = clipboardHistory();
       if (!areClipboardDataArraysEqual(history, currentHistory)) {
+        history.sort((a, b) => {
+          return new Date(b.datetime).getTime() - new Date(a.datetime).getTime();
+        });
         setClipboardHistory(history);
       }
     }, 100);

@@ -64,7 +64,7 @@ const ClipboardHistoryCard: Component<ClipboardHistoryCardProps> = (props) => {
       <Center height="50px" fontSize="14px">
         {formattedDate}
       </Center>
-      <Container class="card-content" style={{"text-align": "left"}}>
+      <Container class="card-content" style={{"text-align": "left", 'flex-grow': 1, 'min-width': '200px', 'white-space': 'normal', 'word-wrap': 'break-word'}}>
         {props.clipboardData.data}
       </Container>
       <button onClick={onCopy} class="common-button" disabled={isCopied()}>
