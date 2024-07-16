@@ -7,14 +7,13 @@ import { emit, listen } from '@tauri-apps/api/event';
 import "./App.css";
 
 function App() {
-  const [greetMsg, setGreetMsg] = createSignal("");
-  const [name, setName] = createSignal("");
+  const [address, setAddress] = createSignal("");
+  const [port, setPort] = createSignal("");
   const [clipboard, setClipboard] = createSignal("");
 
-  async function greet() {
-    setGreetMsg(await invoke("greet", { name: name() }));
+  async function connect() {
+    await invoke('connect', { address: address(), port: port() });
   }
-
 
   async function startListening() {
     await invoke('start_listening')
@@ -68,15 +67,22 @@ function App() {
         class="row"
         onSubmit={(e) => {
           e.preventDefault();
-          greet();
+          connect();
         }}
       >
         <input
-          id="greet-input"
-          onChange={(e) => setName(e.currentTarget.value)}
-          placeholder="Enter a name..."
+          id="address-input"
+          onChange={(e) => setAddress(e.currentTarget.value)}
+          placeholder="Enter a server address..."
         />
-        <button type="submit">Greet</button>
+
+        <input
+          id="port-input"
+          onChange={(e) => setPort(e.currentTarget.value)}
+          placeholder="Enter a server port..."
+        />
+
+        <button type="submit">Connect</button>
       </form>
 
       <form
@@ -97,8 +103,6 @@ function App() {
       <button onClick={selectFile}>Click to open dialog</button>
       <button onClick={emitMessage}>Click to emit message</button>
       <button onClick={startListening}>Click to start listening</button>
-
-      <p>{greetMsg()}</p>
       </div>
     </div>
   );
