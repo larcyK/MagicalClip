@@ -11,12 +11,12 @@ use std::sync::{mpsc, Arc};
 use lazy_static::lazy_static;
 
 struct AppState {
-    sendDataQueue: Vec<Vec<u8>>,
+    send_data_queue: Vec<Vec<u8>>,
 }
 
 lazy_static! {
     static ref APP_STATE: Arc<Mutex<AppState>> = Arc::new(Mutex::new(AppState {
-        sendDataQueue: Vec::new(),
+        send_data_queue: Vec::new(),
     }));
 }
 
@@ -35,12 +35,15 @@ fn front_to_back(event: tauri::Event) {
 
 async fn monitor_clipboard() {
     let mut clipboard = Clipboard::new().unwrap();
-    let mut last_clipboard = clipboard.get_text().unwrap();
+    let mut last_clipboard = match clipboard.get_text() {
+        Ok(text) => text,
+        Err(_) => String::new(),
+    };
     loop {
         let current_clipboard = clipboard.get_text().unwrap();
         if current_clipboard != last_clipboard {
             println!("Clipboard changed: {}", current_clipboard);
-            APP_STATE.lock().await.sendDataQueue.push(current_clipboard.as_bytes().to_vec());
+            APP_STATE.lock().await.send_data_queue.push(current_clipboard.as_bytes().to_vec());
             last_clipboard = current_clipboard;
         }
         tokio::time::sleep(std::time::Duration::from_secs(1)).await;
@@ -74,8 +77,8 @@ async fn process_tcp_stream(mut stream: TcpStream) {
         }
 
         let mut state = APP_STATE.lock().await;
-        while !state.sendDataQueue.is_empty() {
-            let data = state.sendDataQueue.remove(0);
+        while !state.send_data_queue.is_empty() {
+            let data = state.send_data_queue.remove(0);
             match stream.write_all(&data).await {
                 Ok(_) => {
                     println!("Sent {} bytes", data.len());
@@ -148,6 +151,18 @@ fn main() {
                     .build()
                     .unwrap()
                     .block_on(monitor_clipboard());
+            });
+            std::thread::spawn(|| {
+                tokio::runtime::Builder::new_current_thread()
+                    .enable_all()
+                    .build()
+                    .unwrap()
+                    .block_on(async {
+                        match start_listening().await {
+                            Ok(_) => println!("Listening for connections..."),
+                            Err(err) => println!("Failed to start server: {}", err),
+                        }
+                    });
             });
             let id = app.listen_global("front-to-back", front_to_back);
             Ok(())
