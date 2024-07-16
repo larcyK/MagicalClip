@@ -5,13 +5,14 @@ use specta::collect_types;
 use tauri::Manager;
 use tauri_specta::ts;
 use tokio::{
-    io::AsyncWriteExt, 
-    net::{TcpListener, TcpStream
-}};
+    io::{AsyncWriteExt, BufReader}, 
+    net::{TcpListener, TcpStream},
+    sync::Mutex
+};
 use arboard::Clipboard;
 use chrono::{Utc};
 use uuid::Uuid;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
 
@@ -51,14 +52,17 @@ async fn monitor_clipboard() {
         Err(_) => String::new(),
     };
     loop {
-        let current_clipboard = clipboard.get_text().unwrap();
+        let current_clipboard = match clipboard.get_text() {
+            Ok(text) => text,
+            Err(_) => String::new(),
+        };
         {
-            last_clipboard = APP_STATE.lock().unwrap().last_clipboard.clone();
+            last_clipboard = APP_STATE.lock().await.last_clipboard.clone();
         }
         if current_clipboard != last_clipboard {
             println!("Clipboard changed: {}", current_clipboard);
             {
-                let mut state = APP_STATE.lock().unwrap();
+                let mut state = APP_STATE.lock().await;
                 state.send_data_queue.push(current_clipboard.as_bytes().to_vec());
                 state.clipboard_history.push(ClipboardData {
                     data_type: ClipboardType::Text,
@@ -78,14 +82,15 @@ async fn update_clipboard(data: Vec<u8>) {
     let text = std::str::from_utf8(&data).unwrap();
     clipboard.set_text(text).unwrap();
     {
-        let mut state = APP_STATE.lock().unwrap();
+        let mut state = APP_STATE.lock().await;
         state.last_clipboard = text.to_string();
     }
 }
 
 async fn process_tcp_stream(mut stream: TcpStream) {
+    let mut buf_reader = BufReader::new(&mut stream);
     loop {
-        let buf = &mut vec![0; 1 << 16];
+        let buf = &mut [0; 1 << 16];
         match stream.try_read(buf) {
             Ok(n) => {
                 if n == 0 {
@@ -95,17 +100,17 @@ async fn process_tcp_stream(mut stream: TcpStream) {
                 let data = buf[..n].to_vec();
                 println!("Received {} bytes", n);
                 println!("Data: {:?}", std::str::from_utf8(&data));
-                update_clipboard(data).await;
+                let mut clipboard = Clipboard::new().unwrap();
+                clipboard.set_text(std::str::from_utf8(&data).unwrap()).unwrap();
             }
             Err(e) => {
                 println!("Failed to read from socket; err = {:?}", e);
-                break;
             }
         }
 
         let mut data_to_send = Vec::new();
         {
-            let mut state = APP_STATE.lock().unwrap();
+            let mut state = APP_STATE.lock().await;
             while let Some(data) = state.send_data_queue.pop() {
                 data_to_send.push(data);
             }
@@ -121,7 +126,7 @@ async fn process_tcp_stream(mut stream: TcpStream) {
             }
         }
 
-        tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
     }
 }
 
@@ -172,14 +177,14 @@ async fn start_listening() -> Result<(), String> {
 #[tauri::command]
 #[specta::specta]
 async fn get_clipboard_history() -> Vec<ClipboardData> {
-    let state = APP_STATE.lock().unwrap();
+    let state = APP_STATE.lock().await;
     state.clipboard_history.clone()
 }
 
 #[tauri::command]
 #[specta::specta]
 async fn delete_clipboard_history(uuid: String) {
-    let mut state = APP_STATE.lock().unwrap();
+    let mut state = APP_STATE.lock().await;
     state.clipboard_history.retain(|data| data.uuid != uuid);
 }
 
@@ -187,7 +192,7 @@ async fn delete_clipboard_history(uuid: String) {
 #[specta::specta]
 async fn copy_clipboard_from(uuid: String) {
     let data = {
-        let state = APP_STATE.lock().unwrap();
+        let state = APP_STATE.lock().await;
         state.clipboard_history.iter().find(|data| data.uuid == uuid).cloned()
     };
     if let Some(data) = data {
