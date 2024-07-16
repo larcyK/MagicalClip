@@ -15,6 +15,11 @@ function App() {
     setGreetMsg(await invoke("greet", { name: name() }));
   }
 
+
+  async function startListening() {
+    await invoke('start_listening')
+  }
+
   async function setClipboardText() {
     await writeText(clipboard());
   }
@@ -91,6 +96,7 @@ function App() {
 
       <button onClick={selectFile}>Click to open dialog</button>
       <button onClick={emitMessage}>Click to emit message</button>
+      <button onClick={startListening}>Click to start listening</button>
 
       <p>{greetMsg()}</p>
       </div>
