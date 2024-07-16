@@ -21,6 +21,7 @@ arboard = "3.4.0"
 lazy_static = "1.4.0"
 chrono = "0.4.38"
 uuid = "1.10.0"
+base64 = "0.22.1"
 
 [features]
 # This feature is used for production builds or when a dev server is not specified, DO NOT REMOVE!!

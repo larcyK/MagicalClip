@@ -59,6 +59,10 @@ function App() {
     await commands.deleteClipboardHistory(uuid);
   }
 
+  async function saveClipboardHistory() {
+    await commands.saveAppData();
+  }
+
   let unlisten: any;
   async function f() {
     unlisten = await listen('back-to-front', event => {
@@ -106,6 +110,8 @@ function App() {
             <button type="submit" class="common-button">Connect</button>
           </HStack>
         </form>
+
+        <button onClick={saveClipboardHistory} class="common-button">Save</button>
 
         <VStack gap="10px" width="95%">
           <For each={clipboardHistory()}>

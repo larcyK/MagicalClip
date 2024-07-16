@@ -14,8 +14,8 @@ export function startListening() {
     return invoke()<null>("start_listening")
 }
 
-export function connect(address: string, port: number) {
-    return invoke()<null>("connect", { address,port })
+export function tcpConnect(address: string, port: number) {
+    return invoke()<null>("tcp_connect", { address,port })
 }
 
 export function getClipboardHistory() {
@@ -30,5 +30,9 @@ export function copyClipboardFrom(uuid: string) {
     return invoke()<null>("copy_clipboard_from", { uuid })
 }
 
-export type ClipboardType = "Text" | "Image" | "File"
+export function saveAppData() {
+    return invoke()<null>("save_app_data")
+}
+
 export type ClipboardData = { uuid: string; data_type: ClipboardType; data: string; datetime: string }
+export type ClipboardType = "Text" | "Image" | "File"

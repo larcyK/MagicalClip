@@ -5,9 +5,6 @@ import {
   HStack, 
   Container,
   Center,
-  Divider,
-  HopeProvider,
-  Text,
 } from '@hope-ui/solid';
 
 function parseRFC3339(dateString: string): Date {
