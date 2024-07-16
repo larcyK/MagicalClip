@@ -8,11 +8,12 @@ import "./App.css";
 
 function App() {
   const [address, setAddress] = createSignal("");
-  const [port, setPort] = createSignal("");
+  const [port, setPort] = createSignal(5000);
   const [clipboard, setClipboard] = createSignal("");
 
   async function connect() {
-    await invoke('connect', { address: address(), port: port() });
+    console.log('connect', address(), port());
+    await invoke('connect', { address: address(), port: port() })
   }
 
   async function startListening() {
@@ -78,7 +79,7 @@ function App() {
 
         <input
           id="port-input"
-          onChange={(e) => setPort(e.currentTarget.value)}
+          onChange={(e) => setPort(Number(e.currentTarget.value))}
           placeholder="Enter a server port..."
         />
 
