@@ -1,36 +1,43 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+use specta::collect_types;
 use tauri::Manager;
+use tauri_specta::ts;
 use tokio::{
     io::{self, AsyncWriteExt, BufReader},
     net::{TcpListener, TcpStream}, sync::Mutex,
 };
 use arboard::Clipboard;
+use chrono::{DateTime, Utc};
 use std::sync::{mpsc, Arc};
 use lazy_static::lazy_static;
+use serde::{Deserialize, Serialize};
+
+#[derive(Clone, Serialize, Deserialize, Debug, specta::Type)]
+enum ClipboardType {
+    Text,
+    Image,
+    File,
+}
+
+#[derive(Clone, Serialize, Deserialize, Debug, specta::Type)]
+struct ClipboardData {
+    data_type: ClipboardType,
+    data: String,
+    datetime: String
+}
 
 struct AppState {
     send_data_queue: Vec<Vec<u8>>,
+    clipboard_history: Vec<ClipboardData>
 }
 
 lazy_static! {
     static ref APP_STATE: Arc<Mutex<AppState>> = Arc::new(Mutex::new(AppState {
         send_data_queue: Vec::new(),
+        clipboard_history: Vec::new()
     }));
-}
-
-// Learn more about Tauri commands at https://tauri.app/v1/guides/features/command
-#[tauri::command]
-fn greet(name: &str) -> String {
-    format!("Hello, {}! You've been greeted from Rust!", name)
-}
-
-fn front_to_back(event: tauri::Event) {
-    println!(
-        "got front-to-back with payload {:?}",
-        event.payload().unwrap()
-    );
 }
 
 async fn monitor_clipboard() {
@@ -44,9 +51,14 @@ async fn monitor_clipboard() {
         if current_clipboard != last_clipboard {
             println!("Clipboard changed: {}", current_clipboard);
             APP_STATE.lock().await.send_data_queue.push(current_clipboard.as_bytes().to_vec());
+            APP_STATE.lock().await.clipboard_history.push(ClipboardData {
+                data_type: ClipboardType::Text,
+                data: current_clipboard.clone(),
+                datetime: Utc::now().to_rfc3339()
+            });
             last_clipboard = current_clipboard;
         }
-        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
     }
 }
 
@@ -94,6 +106,7 @@ async fn process_tcp_stream(mut stream: TcpStream) {
 }
 
 #[tauri::command]
+#[specta::specta]
 async fn connect(address: String, port: u16) -> Result<(), String> {
     println!("Connecting to server at {}:{}", address, port);
     let addr = format!("{}:{}", address, port);
@@ -108,6 +121,7 @@ async fn connect(address: String, port: u16) -> Result<(), String> {
 }
 
 #[tauri::command]
+#[specta::specta]
 async fn start_listening() -> Result<(), String> {
     println!("Starting server...");
     let listener = match TcpListener::bind("0.0.0.0:8080").await {
@@ -118,7 +132,7 @@ async fn start_listening() -> Result<(), String> {
     loop {
         match listener.accept().await {
 
-            Ok((mut stream, addr)) => {
+            Ok((stream, addr)) => {
                 println!("Connected to server at {}", addr);
                 tokio::spawn(async move {
                     process_tcp_stream(stream).await;
@@ -133,6 +147,24 @@ async fn start_listening() -> Result<(), String> {
         tokio::time::sleep(std::time::Duration::from_secs(1)).await;
         println!("Attempting to reconnect...");
     }
+}
+
+#[tauri::command]
+#[specta::specta]
+async fn get_clipboard_history() -> Vec<ClipboardData> {
+    let state = APP_STATE.lock().await;
+    state.clipboard_history.clone()
+}
+
+#[test]
+fn export_bindings() {
+    ts::export(collect_types![
+        start_listening,
+        connect,
+        get_clipboard_history
+    ], 
+    "../src/bindings.ts")
+    .unwrap();
 }
 
 fn main() {
@@ -164,13 +196,12 @@ fn main() {
                         }
                     });
             });
-            let id = app.listen_global("front-to-back", front_to_back);
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
-            greet,
             start_listening,
             connect,
+            get_clipboard_history
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

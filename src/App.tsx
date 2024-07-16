@@ -1,31 +1,22 @@
-import { createSignal } from "solid-js";
+import { createSignal, For, onMount } from "solid-js";
 import logo from "./assets/logo.svg";
-import { invoke } from "@tauri-apps/api/tauri";
 import { open } from '@tauri-apps/api/dialog'
-import { writeText, readText } from '@tauri-apps/api/clipboard';
-import { emit, listen } from '@tauri-apps/api/event';
+import { listen } from '@tauri-apps/api/event';
 import "./App.css";
+import * as commands from "./bindings";
 
 function App() {
   const [address, setAddress] = createSignal("");
   const [port, setPort] = createSignal(5000);
-  const [clipboard, setClipboard] = createSignal("");
+  const [clipboardHistory, setClipboardHistory] = createSignal<commands.ClipboardData[]>([]);
 
   async function connect() {
     console.log('connect', address(), port());
-    await invoke('connect', { address: address(), port: port() })
+    await commands.connect(address(), port());
   }
 
   async function startListening() {
-    await invoke('start_listening')
-  }
-
-  async function setClipboardText() {
-    await writeText(clipboard());
-  }
-
-  function emitMessage() {
-    emit('front-to-back', "hello from front")
+    await commands.startListening();
   }
 
   function selectFile() {
@@ -44,6 +35,13 @@ function App() {
     });
   }
   f();
+
+  onMount(() => {
+    setInterval(async () => {
+      const history = await commands.getClipboardHistory();
+      setClipboardHistory(history);
+    }, 100);
+  });
 
   return (
     <div class="container">
@@ -86,24 +84,16 @@ function App() {
         <button type="submit">Connect</button>
       </form>
 
-      <form
-        class="row"
-        onSubmit={(e) => {
-          e.preventDefault();
-          setClipboardText();
-        }}
-      >
-        <input
-          id="greet-input"
-          onChange={(e) => setClipboard(e.currentTarget.value)}
-          placeholder="Enter text to set clipboard..."
-        />
-        <button type="submit">Set Clipboard</button>
-      </form>
-
       <button onClick={selectFile}>Click to open dialog</button>
-      <button onClick={emitMessage}>Click to emit message</button>
       <button onClick={startListening}>Click to start listening</button>
+
+      <ul>
+        <For each={clipboardHistory()}>
+          {item => (
+            <li>{item.data}</li>
+          )}
+        </For>
+      </ul>
       </div>
     </div>
   );
