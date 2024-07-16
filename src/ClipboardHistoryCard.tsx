@@ -30,6 +30,21 @@ function formatDate(date: Date): string {
   return `${year}-${month}-${day}\n${hours}:${minutes}:${seconds}.${milliseconds}`;
 }
 
+function formatJSTDate(date: Date): string {
+  const jstOffset = 9 * 60;
+  const jstDate = new Date(date.getTime() + jstOffset * 60 * 1000);
+
+  const year = jstDate.getUTCFullYear();
+  const month = (jstDate.getUTCMonth() + 1).toString().padStart(2, '0');
+  const day = jstDate.getUTCDate().toString().padStart(2, '0');
+  const hours = jstDate.getUTCHours().toString().padStart(2, '0');
+  const minutes = jstDate.getUTCMinutes().toString().padStart(2, '0');
+  const seconds = jstDate.getUTCSeconds().toString().padStart(2, '0');
+  const milliseconds = jstDate.getUTCMilliseconds().toString().padStart(3, '0');
+
+  return `${year}-${month}-${day}\n${hours}:${minutes}:${seconds}.${milliseconds}`;
+}
+
 interface ClipboardHistoryCardProps {
   clipboardData: ClipboardData;
   onCopy: () => void;
@@ -38,7 +53,7 @@ interface ClipboardHistoryCardProps {
 
 const ClipboardHistoryCard: Component<ClipboardHistoryCardProps> = (props) => {
   const date = parseRFC3339(props.clipboardData.datetime);
-  const formattedDate = formatDate(date);
+  const formattedDate = formatJSTDate(date);
   const [isCopied, setIsCopied] = createSignal(false);
 
   function onCopy() {

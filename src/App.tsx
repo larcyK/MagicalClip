@@ -59,15 +59,6 @@ function App() {
     await commands.deleteClipboardHistory(uuid);
   }
 
-  function selectFile() {
-    console.log('select file');
-    open({ directory: false, multiple: false }).then((result) => {
-      console.log(result);
-    }).catch((error) => {
-      console.error(error);
-    });
-  }
-
   let unlisten: any;
   async function f() {
     unlisten = await listen('back-to-front', event => {
