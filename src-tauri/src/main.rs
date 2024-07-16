@@ -1,6 +1,9 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod clipboard;
+
+use clipboard::{add_clipboard_data, update_clipboard, ClipboardData};
 use specta::collect_types;
 use tauri::Manager;
 use tauri_specta::ts;
@@ -9,28 +12,11 @@ use tokio::{
     net::{TcpListener, TcpStream},
     sync::Mutex
 };
-use arboard::Clipboard;
-use chrono::{DateTime, Utc};
 use uuid::Uuid;
 use core::time;
 use std::sync::Arc;
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
-
-#[derive(Clone, Serialize, Deserialize, Debug, specta::Type)]
-enum ClipboardType {
-    Text,
-    Image,
-    File,
-}
-
-#[derive(Clone, Serialize, Deserialize, Debug, specta::Type)]
-struct ClipboardData {
-    uuid: String,
-    data_type: ClipboardType,
-    data: String,
-    datetime: String
-}
 
 struct AppState {
     last_clipboard: String,
@@ -46,63 +32,9 @@ lazy_static! {
     }));
 }
 
-async fn monitor_clipboard() {
-    let mut clipboard = Clipboard::new().unwrap();
-    let mut last_clipboard = match clipboard.get_text() {
-        Ok(text) => text,
-        Err(_) => String::new(),
-    };
-    loop {
-        let current_clipboard = match clipboard.get_text() {
-            Ok(text) => text,
-            Err(_) => String::new(),
-        };
-        {
-            last_clipboard = APP_STATE.lock().await.last_clipboard.clone();
-        }
-        if current_clipboard != last_clipboard {
-            println!("Clipboard changed: {}", current_clipboard);
-            {
-                let data = current_clipboard.as_bytes().to_vec();
-                push_data_to_send_queue(data.clone()).await;
-                add_clipboard_data(data.clone(), None).await;
-                update_clipboard(data.clone()).await;
-            }
-        }
-        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
-    }
-}
-
-async fn push_data_to_send_queue(data: Vec<u8>) {
+pub async fn push_data_to_send_queue(data: Vec<u8>) {
     let mut state = APP_STATE.lock().await;
     state.send_data_queue.push(data);
-}
-
-async fn update_clipboard(data: Vec<u8>) {
-    let mut clipboard = Clipboard::new().unwrap();
-    let text = std::str::from_utf8(&data).unwrap();
-    clipboard.set_text(text).unwrap();
-    {
-        let mut state = APP_STATE.lock().await;
-        state.last_clipboard = text.to_string();
-    }
-}
-
-async fn add_clipboard_data(data: Vec<u8>, timestamp: Option<DateTime<Utc>>) {
-    let timestamp = match timestamp {
-        Some(ts) => ts,
-        None => Utc::now()
-    };
-    let text = std::str::from_utf8(&data).unwrap();
-    {
-        let mut state = APP_STATE.lock().await;
-        state.clipboard_history.push(ClipboardData {
-            data_type: ClipboardType::Text,
-            data: text.to_string(),
-            datetime: timestamp.to_rfc3339(),
-            uuid: Uuid::new_v4().to_string()
-        });
-    }
 }
 
 async fn process_tcp_stream(mut stream: TcpStream) {
@@ -208,27 +140,6 @@ async fn delete_clipboard_history(uuid: String) {
     state.clipboard_history.retain(|data| data.uuid != uuid);
 }
 
-#[tauri::command]
-#[specta::specta]
-async fn copy_clipboard_from(uuid: String) {
-    let data = {
-        let state = APP_STATE.lock().await;
-        state.clipboard_history.iter().find(|data| data.uuid == uuid).cloned()
-    };
-    if let Some(data) = data {
-        let data = data.data.as_bytes().to_vec();
-
-        update_clipboard(data.clone()).await;
-        push_data_to_send_queue(data.clone()).await;
-        let timestamp = Utc::now();
-
-        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-        add_clipboard_data(data.clone(), Some(timestamp)).await;
-    } else {
-        println!("Data with UUID {} not found", uuid);
-    }
-}
-
 #[test]
 fn export_bindings() {
     ts::export(collect_types![
@@ -236,7 +147,7 @@ fn export_bindings() {
         connect,
         get_clipboard_history,
         delete_clipboard_history,
-        copy_clipboard_from
+        clipboard::copy_clipboard_from
     ], 
     "../src/bindings.ts")
     .unwrap();
@@ -257,7 +168,7 @@ fn main() {
                     .enable_all()
                     .build()
                     .unwrap()
-                    .block_on(monitor_clipboard());
+                    .block_on(clipboard::monitor_clipboard());
             });
             std::thread::spawn(|| {
                 tokio::runtime::Builder::new_current_thread()
@@ -278,7 +189,7 @@ fn main() {
             connect,
             get_clipboard_history,
             delete_clipboard_history,
-            copy_clipboard_from
+            clipboard::copy_clipboard_from
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
