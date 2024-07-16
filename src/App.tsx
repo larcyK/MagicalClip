@@ -44,7 +44,7 @@ function App() {
 
   async function connect() {
     console.log('connect', address(), port());
-    await commands.connect(address(), port());
+    await commands.tcpConnect(address(), port());
   }
 
   async function startListening() {
