@@ -62,12 +62,18 @@ async fn monitor_clipboard() {
         if current_clipboard != last_clipboard {
             println!("Clipboard changed: {}", current_clipboard);
             {
+                push_data_to_send_queue(current_clipboard.as_bytes().to_vec()).await;
                 add_clipboard_data(current_clipboard.as_bytes().to_vec()).await;
                 update_clipboard(current_clipboard.as_bytes().to_vec()).await;
             }
         }
         tokio::time::sleep(std::time::Duration::from_millis(100)).await;
     }
+}
+
+async fn push_data_to_send_queue(data: Vec<u8>) {
+    let mut state = APP_STATE.lock().await;
+    state.send_data_queue.push(data);
 }
 
 async fn update_clipboard(data: Vec<u8>) {
