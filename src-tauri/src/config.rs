@@ -1,5 +1,7 @@
-use std::{fs::{self, create_dir_all, remove_dir}, path::PathBuf};
+use std::{fs::{self, create_dir_all, remove_dir}, path::{self, PathBuf}};
 
+use arboard::ImageData;
+use image::{ImageBuffer, Rgba};
 use serde::{Deserialize, Serialize};
 use tauri::api::path::{ app_config_dir };
 
@@ -80,30 +82,21 @@ impl RawAppData {
     }
 }
 
-fn get_app_file_path(tauri_config: &tauri::Config, file_name: &'static str) -> Option<PathBuf> {
-    let path = app_config_dir(tauri_config)?.join(file_name);
-
-    if path.exists() && !path.is_file() {
-        remove_dir(&path).ok()?;
-    }
-
-    if !path.exists() {
-        let dir = path.parent()?;
-
-        create_dir_all(&dir).ok()?;
-    }
-
-    Some(path)
-}
-
-pub fn get_app_data_path(tauri_config: &tauri::Config) -> Option<PathBuf> {
-    let path = get_app_file_path(tauri_config, "app_data.json");
+fn get_app_data_path(tauri_config: &tauri::Config) -> Option<PathBuf> {
+    let path = app_config_dir(tauri_config);
     println!("App data path: {:?}", path);
     path
 }
 
+pub fn get_app_folder_path(tauri_config: &tauri::Config) -> Option<PathBuf> {
+    let path = app_config_dir(tauri_config);
+    println!("App folder path: {:?}", path);
+    path
+}
+
 pub fn get_app_data(tauri_config: &tauri::Config) -> Option<AppData> {
-    let path = get_app_data_path(tauri_config)?;
+    let folder_path = get_app_folder_path(tauri_config)?;
+    let path = folder_path.join("app_data.json");
 
     let json_data = std::fs::read_to_string(path).ok()?;
 
@@ -130,8 +123,42 @@ pub async fn load_app_data(config: &tauri::Config) where tauri::Config: Send {
     }
     {
         let mut state = APP_STATE.lock().await;
-        let path = get_app_data_path(&config).unwrap().to_string_lossy().to_string();
-        state.app_data_path = path;
+        let folder_path = get_app_folder_path(&config).unwrap();
+        state.app_folder_path = folder_path.to_str().unwrap().to_string();
+    }
+}
+
+pub async fn save_image(img_buffer: &ImageBuffer<Rgba<u8>, Vec<u8>> , file_name: String, img_format: image::ImageFormat)
+        -> Result<(), String> {
+    let path;
+    {
+        let state = APP_STATE.lock().await;
+        path = PathBuf::from(&state.app_folder_path).join("images").join(file_name);
+    }
+    
+    if !path.exists() {
+        let dir = path.parent().unwrap();
+        create_dir_all(&dir).ok();
+    }
+
+    img_buffer.save_with_format(path, img_format).unwrap();
+
+    Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn load_img_path(file_name: String) -> Result<String, String> {
+    let path;
+    {
+        let state = APP_STATE.lock().await;
+        path = PathBuf::from(&state.app_folder_path).join("images").join(file_name);
+    }
+
+    if path.exists() {
+        Ok(path.to_str().unwrap().to_string())
+    } else {
+        Err("File not found".to_string())
     }
 }
 
@@ -152,7 +179,8 @@ pub async fn save_app_data() {
         }).collect()
     };
     
-    let path = PathBuf::from(&state.app_data_path);
+    let folder_path = PathBuf::from(&state.app_folder_path);
+    let path = folder_path.join("app_data.json");
 
     if !path.exists() {
         let dir = path.parent().unwrap();

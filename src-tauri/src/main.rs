@@ -5,8 +5,8 @@ mod clipboard;
 mod tcp;
 mod config;
 
-use clipboard::{ClipboardData};
-use config::{get_app_data_path, load_app_data};
+use clipboard::{ClipboardData, RawClipboardData};
+use config::{load_app_data};
 use specta::collect_types;
 use tauri::Manager;
 use tauri_specta::ts;
@@ -20,8 +20,8 @@ use lazy_static::lazy_static;
 struct AppState {
     server_address: Option<String>,
     server_port: u16,
-    app_data_path: String,
-    last_clipboard: String,
+    app_folder_path: String,
+    last_clipboard: RawClipboardData,
     send_data_queue: Vec<TcpData>,
     clipboard_history: Vec<ClipboardData>
 }
@@ -30,8 +30,8 @@ lazy_static! {
     static ref APP_STATE: Arc<Mutex<AppState>> = Arc::new(Mutex::new(AppState {
         server_address: None,
         server_port: 0,
-        app_data_path: String::new(),
-        last_clipboard: String::new(),
+        app_folder_path: String::new(),
+        last_clipboard: RawClipboardData::Text(String::new()),
         send_data_queue: Vec::new(),
         clipboard_history: Vec::new()
     }));
@@ -103,7 +103,7 @@ fn main() {
                         }
                     });
             });
-            
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

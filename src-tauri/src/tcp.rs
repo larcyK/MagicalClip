@@ -2,6 +2,7 @@ use std::str::EncodeUtf16;
 
 use arboard::ImageData;
 use base64::{prelude::BASE64_STANDARD, Engine};
+use image::ImageBuffer;
 use serde::{Deserialize, Serialize};
 use tokio::{io::{AsyncWriteExt, BufReader}, net::{TcpListener, TcpStream}};
 
@@ -42,10 +43,10 @@ pub async fn push_text_to_send_queue(text: String) {
     push_data_to_send_queue(data).await;
 }
 
-pub async fn push_image_to_send_queue<'a>(data: ImageData<'a>) {
+pub async fn push_image_to_send_queue(data: &ImageBuffer<image::Rgba<u8>, Vec<u8>>) {
     let data = TcpData {
         data_type: TcpDataType::Image,
-        data: BASE64_STANDARD.encode(data.into_owned_bytes().as_ref())
+        data: BASE64_STANDARD.encode(data.as_raw())
     };
     push_data_to_send_queue(data).await;
 }
