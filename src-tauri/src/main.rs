@@ -10,7 +10,7 @@ use config::{get_app_data_path, load_app_data};
 use specta::collect_types;
 use tauri::Manager;
 use tauri_specta::ts;
-use tcp::{start_listening, tcp_connect};
+use tcp::{start_listening, tcp_connect, TcpData};
 use tokio::{
     sync::Mutex
 };
@@ -22,7 +22,7 @@ struct AppState {
     server_port: u16,
     app_data_path: String,
     last_clipboard: String,
-    send_data_queue: Vec<Vec<u8>>,
+    send_data_queue: Vec<TcpData>,
     clipboard_history: Vec<ClipboardData>
 }
 
@@ -88,7 +88,7 @@ fn main() {
                         .unwrap()
                         .block_on(clipboard::monitor_clipboard());
                 });
-                
+
                 std::thread::spawn(|| {
                     tokio::runtime::Builder::new_current_thread()
                         .enable_all()

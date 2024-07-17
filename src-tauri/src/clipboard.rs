@@ -3,7 +3,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{config::save_app_data, tcp::push_data_to_send_queue, APP_STATE};
+use crate::{config::save_app_data, tcp::push_text_to_send_queue, APP_STATE};
 
 #[derive(Clone, Serialize, Deserialize, Debug, specta::Type)]
 pub enum ClipboardType {
@@ -20,23 +20,21 @@ pub struct ClipboardData {
     pub datetime: String
 }
 
-pub async fn update_clipboard(data: Vec<u8>) {
+pub async fn update_text_clipboard(text: String) {
     let mut clipboard = Clipboard::new().unwrap();
-    let text = std::str::from_utf8(&data).unwrap();
-    clipboard.set_text(text).unwrap();
+    clipboard.set_text(text.clone()).unwrap();
     {
         let mut state = APP_STATE.lock().await;
-        state.last_clipboard = text.to_string();
+        state.last_clipboard = text.clone();
     }
     save_app_data().await;
 }
 
-pub async fn add_clipboard_data(data: Vec<u8>, timestamp: Option<DateTime<Utc>>) {
+pub async fn add_text_clipboard_data(text: String, timestamp: Option<DateTime<Utc>>) {
     let timestamp = match timestamp {
         Some(ts) => ts,
         None => Utc::now()
     };
-    let text = std::str::from_utf8(&data).unwrap();
     {
         let mut state = APP_STATE.lock().await;
         state.clipboard_history.push(ClipboardData {
@@ -65,10 +63,10 @@ pub async fn monitor_clipboard() {
         if current_clipboard != last_clipboard {
             println!("Clipboard changed: {}", current_clipboard);
             {
-                let data = current_clipboard.as_bytes().to_vec();
-                push_data_to_send_queue(data.clone()).await;
-                add_clipboard_data(data.clone(), None).await;
-                update_clipboard(data.clone()).await;
+                let text = current_clipboard;
+                push_text_to_send_queue(text.clone()).await;
+                add_text_clipboard_data(text.clone(), None).await;
+                update_text_clipboard(text.clone()).await;
             }
         }
         tokio::time::sleep(std::time::Duration::from_millis(100)).await;
@@ -83,14 +81,14 @@ pub async fn copy_clipboard_from(uuid: String) {
         state.clipboard_history.iter().find(|data| data.uuid == uuid).cloned()
     };
     if let Some(data) = data {
-        let data = data.data.as_bytes().to_vec();
+        let text = data.data;
 
-        update_clipboard(data.clone()).await;
-        push_data_to_send_queue(data.clone()).await;
+        update_text_clipboard(text.clone()).await;
+        push_text_to_send_queue(text.clone()).await;
         let timestamp = Utc::now();
 
         tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-        add_clipboard_data(data.clone(), Some(timestamp)).await;
+        add_text_clipboard_data(text.clone(), Some(timestamp)).await;
     } else {
         println!("Data with UUID {} not found", uuid);
     }
