@@ -5,8 +5,9 @@ use base64::{prelude::BASE64_STANDARD, Engine};
 use image::ImageBuffer;
 use serde::{Deserialize, Serialize};
 use tokio::{io::{AsyncWriteExt, BufReader}, net::{TcpListener, TcpStream}};
+use uuid::Uuid;
 
-use crate::{clipboard::{add_text_clipboard_data, update_text_clipboard}, config::save_app_data, APP_STATE};
+use crate::{clipboard::{add_image_clipboard_data, add_text_clipboard_data, update_image_clipboard, update_text_clipboard}, config::{save_app_data, save_image}, APP_STATE};
 
 #[derive(Clone, Copy, Serialize, Deserialize, Debug)]
 enum TcpDataType {
@@ -111,6 +112,14 @@ pub async fn process_tcp_stream(mut stream: TcpStream) {
                             TcpDataType::Blob => {
                             }
                             TcpDataType::Image => {
+                                let raw_data = BASE64_STANDARD.decode(data.data.as_bytes()).unwrap();
+                                let dynamic_image = image::load_from_memory(&raw_data).unwrap();
+                                let image_buffer = dynamic_image.to_rgba8();
+                                let image_uuid = Uuid::new_v4().to_string();
+                                let file_name: String = format!("{}.png", image_uuid);
+                                let _ = save_image(&image_buffer, file_name.clone(), image::ImageFormat::Png).await;
+                                add_image_clipboard_data(file_name.clone(), None).await;
+                                update_image_clipboard(image_buffer.clone()).await;
                             }
                             TcpDataType::Command => {
                             }
