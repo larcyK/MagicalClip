@@ -1,6 +1,7 @@
 use std::{fs::{self, create_dir_all, remove_dir}, path::{self, PathBuf}};
 
 use arboard::ImageData;
+use base64::{prelude::BASE64_STANDARD, Engine};
 use image::{ImageBuffer, Rgba};
 use serde::{Deserialize, Serialize};
 use tauri::api::path::{ app_config_dir };
@@ -159,6 +160,24 @@ pub async fn load_img_path(file_name: String) -> Result<String, String> {
         Ok(path.to_str().unwrap().to_string())
     } else {
         Err("File not found".to_string())
+    }
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn get_image_as_base64(file_name: String) -> Result<String, String> {
+    let app_dir = async {
+        let state = APP_STATE.lock().await;
+        PathBuf::from(&state.app_folder_path)
+    }.await;
+
+    let image_path = app_dir.join("images").join(file_name);
+    match std::fs::read(&image_path) {
+        Ok(bytes) => {
+            let base64 = BASE64_STANDARD.encode(bytes.as_slice());
+            Ok(format!("data:image/png;base64,{}", base64))
+        },
+        Err(e) => Err(format!("Failed to read image: {}", e))
     }
 }
 

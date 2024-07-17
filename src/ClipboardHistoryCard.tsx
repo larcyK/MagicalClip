@@ -1,6 +1,6 @@
-import { Component, createSignal } from 'solid-js';
+import { Component, createSignal, onMount, Show } from 'solid-js';
 import './ClipboardHistoryCard.css';
-import { ClipboardData } from './bindings';
+import { ClipboardData, getImageAsBase64 } from './bindings';
 import { 
   HStack, 
   Container,
@@ -52,6 +52,7 @@ const ClipboardHistoryCard: Component<ClipboardHistoryCardProps> = (props) => {
   const date = parseRFC3339(props.clipboardData.datetime);
   const formattedDate = formatJSTDate(date);
   const [isCopied, setIsCopied] = createSignal(false);
+  const [imageData, setImageData] = createSignal('');
 
   function onCopy() {
     props.onCopy();
@@ -59,13 +60,37 @@ const ClipboardHistoryCard: Component<ClipboardHistoryCardProps> = (props) => {
     setTimeout(() => setIsCopied(false), 5000);
   }
 
+  async function loadImageData() {
+    if (props.clipboardData.data_type === 'Image') {
+      try {
+        const base64Data = await getImageAsBase64(props.clipboardData.data);
+        setImageData(base64Data);
+      } catch (error) {
+        console.error('Error loading image data:', error);
+      }
+    }
+  }
+
+  onMount(() => {
+    loadImageData();
+  });
+
   return (
     <HStack width="100%" spacing="$4" padding="$4"  class="clipboard-history-card">
       <Center height="50px" fontSize="14px">
         {formattedDate}
       </Center>
       <Container class="card-content" style={{"text-align": "left", 'flex-grow': 1, 'min-width': '200px', 'white-space': 'normal', 'word-wrap': 'break-word'}}>
-        {props.clipboardData.data}
+        <Show 
+          when={props.clipboardData.data_type === "Text"}
+          fallback={
+            <Show when={props.clipboardData.data_type === "Image" && imageData()}>
+              <img src={imageData()} alt="Clipboard image" style={{ "max-width": '100%', "max-height": '200px' }} />
+            </Show>
+          }
+        >
+          <p>{props.clipboardData.data}</p>
+        </Show>
       </Container>
       <button onClick={onCopy} class="common-button" disabled={isCopied()}>
         {isCopied() ? "✅" : "📋"}

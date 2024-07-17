@@ -34,5 +34,13 @@ export function saveAppData() {
     return invoke()<null>("save_app_data")
 }
 
+export function deleteAppData() {
+    return invoke()<null>("delete_app_data")
+}
+
+export function getImageAsBase64(fileName: string) {
+    return invoke()<string>("get_image_as_base64", { fileName })
+}
+
 export type ClipboardData = { uuid: string; data_type: ClipboardType; data: string; datetime: string }
 export type ClipboardType = "Text" | "Image" | "File"

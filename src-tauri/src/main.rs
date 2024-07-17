@@ -46,7 +46,8 @@ fn export_bindings() {
         clipboard::delete_clipboard_history,
         clipboard::copy_clipboard_from,
         config::save_app_data,
-        config::delete_app_data
+        config::delete_app_data,
+        config::get_image_as_base64
     ], 
     "../src/bindings.ts")
     .unwrap();
@@ -113,7 +114,8 @@ fn main() {
             clipboard::delete_clipboard_history,
             clipboard::copy_clipboard_from,
             config::save_app_data,
-            config::delete_app_data
+            config::delete_app_data,
+            config::get_image_as_base64
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
