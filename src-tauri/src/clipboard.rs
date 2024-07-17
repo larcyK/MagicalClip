@@ -27,7 +27,7 @@ pub async fn update_text_clipboard(text: String) {
         let mut state = APP_STATE.lock().await;
         state.last_clipboard = text.clone();
     }
-    save_app_data().await;
+    // save_app_data().await;
 }
 
 pub async fn add_text_clipboard_data(text: String, timestamp: Option<DateTime<Utc>>) {

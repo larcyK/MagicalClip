@@ -66,6 +66,7 @@ fn main() {
                     std::thread::sleep(std::time::Duration::from_secs(1))
                 });
             }
+            
             tauri::async_runtime::spawn(async move {
                 let app_handle = app_handle.clone();
                 load_app_data(&app_handle.config()).await;
@@ -80,28 +81,29 @@ fn main() {
                 if let Some(addr) = address {
                     tcp_connect(addr, port).await.unwrap();
                 }
-
-                std::thread::spawn(|| {
-                    tokio::runtime::Builder::new_current_thread()
-                        .enable_all()
-                        .build()
-                        .unwrap()
-                        .block_on(clipboard::monitor_clipboard());
-                });
-
-                std::thread::spawn(|| {
-                    tokio::runtime::Builder::new_current_thread()
-                        .enable_all()
-                        .build()
-                        .unwrap()
-                        .block_on(async {
-                            match start_listening().await {
-                                Ok(_) => println!("Listening for connections..."),
-                                Err(err) => println!("Failed to start server: {}", err),
-                            }
-                        });
-                });
             });
+
+            std::thread::spawn(|| {
+                tokio::runtime::Builder::new_current_thread()
+                    .enable_all()
+                    .build()
+                    .unwrap()
+                    .block_on(clipboard::monitor_clipboard());
+            });
+            
+            std::thread::spawn(|| {
+                tokio::runtime::Builder::new_current_thread()
+                    .enable_all()
+                    .build()
+                    .unwrap()
+                    .block_on(async {
+                        match start_listening().await {
+                            Ok(_) => println!("Listening for connections..."),
+                            Err(err) => println!("Failed to start server: {}", err),
+                        }
+                    });
+            });
+            
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
