@@ -42,11 +42,15 @@ pub struct ClipboardData {
 #[derive(Deserialize, Serialize)]
 pub struct AppData {
     pub history: Vec<ClipboardData>,
+    pub server_address: Option<String>,
+    pub server_port: u16
 }
 
 #[derive(Deserialize, Serialize)]
 struct RawAppData {
     history: Vec<RawClipboardData>,
+    server_address: Option<String>,
+    server_port: u16
 }
 
 #[derive(Deserialize, Serialize)]
@@ -68,7 +72,11 @@ impl RawAppData {
                 data: data.data
             }
         }).collect();
-        AppData { history }
+        AppData { 
+            history,
+            server_address: self.server_address,
+            server_port: self.server_port
+        }
     }
 }
 
@@ -90,6 +98,7 @@ fn get_app_file_path(tauri_config: &tauri::Config, file_name: &'static str) -> O
 
 pub fn get_app_data_path(tauri_config: &tauri::Config) -> Option<PathBuf> {
     let path = get_app_file_path(tauri_config, "app_data.json");
+    println!("App data path: {:?}", path);
     path
 }
 
@@ -99,8 +108,10 @@ pub fn get_app_data(tauri_config: &tauri::Config) -> Option<AppData> {
     let json_data = std::fs::read_to_string(path).ok()?;
 
     let raw_app_data: RawAppData = serde_json::from_str(&json_data).ok()?;
-
     Some(raw_app_data.convert_to_app_data())
+
+    // let app_data: AppData = serde_json::from_str(&json_data).ok()?;
+    // Some(app_data)
 }
 
 pub async fn load_app_data(config: &tauri::Config) where tauri::Config: Send {
@@ -113,7 +124,9 @@ pub async fn load_app_data(config: &tauri::Config) where tauri::Config: Send {
                 datetime: data.datetime,
                 data: data.data
             }
-        }).collect()
+        }).collect();
+        state.server_address = app_data.server_address;
+        state.server_port = app_data.server_port;
     }
     {
         let mut state = APP_STATE.lock().await;
@@ -127,6 +140,8 @@ pub async fn load_app_data(config: &tauri::Config) where tauri::Config: Send {
 pub async fn save_app_data() {
     let state = APP_STATE.lock().await;
     let app_data = AppData {
+        server_address: state.server_address.clone(),
+        server_port: state.server_port,
         history: state.clipboard_history.iter().map(|data| {
             ClipboardData {
                 uuid: data.uuid.clone(),
@@ -143,6 +158,8 @@ pub async fn save_app_data() {
         let dir = path.parent().unwrap();
         create_dir_all(&dir).ok();
     }
+
+    println!("Save app data (port: {}): {:?}", state.server_port, path);
 
     let json_data = serde_json::to_string(&app_data).unwrap();
     std::fs::write(path, json_data).unwrap();

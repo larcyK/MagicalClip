@@ -1,6 +1,6 @@
 use tokio::{io::{AsyncWriteExt, BufReader}, net::{TcpListener, TcpStream}};
 
-use crate::{clipboard::{add_clipboard_data, update_clipboard}, APP_STATE};
+use crate::{clipboard::{add_clipboard_data, update_clipboard}, config::save_app_data, APP_STATE};
 
 pub async fn push_data_to_send_queue(data: Vec<u8>) {
     let mut state = APP_STATE.lock().await;
@@ -58,7 +58,15 @@ pub async fn tcp_connect(address: String, port: u16) -> Result<(), String> {
     println!("Connecting to server at {}:{}", address, port);
     let addr = format!("{}:{}", address, port);
     let stream = match TcpStream::connect(&addr).await {
-        Ok(stream) => stream,
+        Ok(stream) => {
+            {
+                let mut state = APP_STATE.lock().await;
+                state.server_address = Some(address);
+                state.server_port = port;
+            }
+            save_app_data().await;
+            stream
+        }
         Err(err) => return Err(err.to_string()),
     };
     tokio::spawn(async move {

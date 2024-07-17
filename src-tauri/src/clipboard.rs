@@ -3,7 +3,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{tcp::push_data_to_send_queue, APP_STATE};
+use crate::{config::save_app_data, tcp::push_data_to_send_queue, APP_STATE};
 
 #[derive(Clone, Serialize, Deserialize, Debug, specta::Type)]
 pub enum ClipboardType {
