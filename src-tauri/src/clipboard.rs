@@ -28,6 +28,7 @@ pub async fn update_clipboard(data: Vec<u8>) {
         let mut state = APP_STATE.lock().await;
         state.last_clipboard = text.to_string();
     }
+    save_app_data().await;
 }
 
 pub async fn add_clipboard_data(data: Vec<u8>, timestamp: Option<DateTime<Utc>>) {
