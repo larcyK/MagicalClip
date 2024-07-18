@@ -45,10 +45,11 @@ pub async fn push_text_to_send_queue(text: String) {
 }
 
 pub async fn push_image_to_send_queue(data: &ImageBuffer<image::Rgba<u8>, Vec<u8>>) {
-    let data = TcpData {
+    let mut data = TcpData {
         data_type: TcpDataType::Image,
-        data: BASE64_STANDARD.encode(data.as_raw())
+        data: format!("{:<10}{:<10}", data.width(), data.height()).as_str().to_owned() + &BASE64_STANDARD.encode(data.as_raw())
     };
+    println!("the size of base64 data is {}", data.data.len());
     push_data_to_send_queue(data).await;
 }
 
@@ -103,7 +104,7 @@ pub async fn process_tcp_stream(mut stream: TcpStream) {
                 let json_data = buf[..n].to_vec();
                 match serde_json::from_slice::<TcpData>(&json_data) {
                     Ok(data) => {
-                        println!("Received data from server: {:?}", data.data_type);
+                        // println!("Received data from server: {:?}", data.data_type);
                         match data.data_type {
                             TcpDataType::Text => {
                                 add_text_clipboard_data(data.data.clone(), None).await;
@@ -126,7 +127,7 @@ pub async fn process_tcp_stream(mut stream: TcpStream) {
                         }
                     }
                     Err(_) => {
-                        println!("Failed to parse JSON data: {:?}", std::str::from_utf8(&json_data));
+                        // println!("Failed to parse JSON data: {:?}", std::str::from_utf8(&json_data));
                     }
                 }
             }
@@ -146,7 +147,7 @@ pub async fn process_tcp_stream(mut stream: TcpStream) {
         for data in data_to_send {
             let serialized_data = serde_json::to_string(&data).unwrap();
             match stream.write_all(serialized_data.as_bytes()).await {
-                Ok(_) => println!("Send data to server: {}", serialized_data),
+                Ok(_) => println!("Send data to server"),
                 Err(e) => {
                     println!("Failed to write to socket; err = {:?}", e);
                     break;
