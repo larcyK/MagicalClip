@@ -103,7 +103,14 @@ fn image_data_to_image_buffer(data: ImageData) -> ImageBuffer<Rgba<u8>, Vec<u8>>
     let width = data.width as u32;
     let height = data.height as u32;
     let bytes = data.bytes;
+
+    println!("the size of the image data bytes is: {}", bytes.len());
+
     let img_buffer: ImageBuffer<Rgba<u8>, _> = ImageBuffer::from_raw(width, height, bytes.to_vec()).unwrap();
+
+    let img_buffer_byte_size = img_buffer.as_raw().len();
+
+    println!("the size of the image buffer is: {}", img_buffer_byte_size);
 
     img_buffer
 }

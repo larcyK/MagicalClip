@@ -2,7 +2,7 @@ use std::str::EncodeUtf16;
 
 use arboard::ImageData;
 use base64::{prelude::BASE64_STANDARD, Engine};
-use image::ImageBuffer;
+use image::{ImageBuffer, Rgba};
 use serde::{Deserialize, Serialize};
 use tokio::{io::{AsyncWriteExt, BufReader}, net::{TcpListener, TcpStream}};
 use uuid::Uuid;
@@ -93,18 +93,19 @@ fn split_json(data: &[u8]) -> Result<Vec<TcpData>, Box<dyn std::error::Error>> {
 
 pub async fn process_tcp_stream(mut stream: TcpStream) {
     let mut buf_reader = BufReader::new(&mut stream);
+    let buf = &mut [0; 1 << 18];
     loop {
-        let buf = &mut [0; 1 << 16];
         match stream.try_read(buf) {
             Ok(n) => {
                 if n == 0 {
                     println!("Connection closed by server");
                     break;
                 }
+                println!("recived data size is : {}", n);
                 let json_data = buf[..n].to_vec();
                 match serde_json::from_slice::<TcpData>(&json_data) {
                     Ok(data) => {
-                        // println!("Received data from server: {:?}", data.data_type);
+                        println!("Received data from server: {:?}", data.data_type);
                         match data.data_type {
                             TcpDataType::Text => {
                                 add_text_clipboard_data(data.data.clone(), None).await;
@@ -113,9 +114,19 @@ pub async fn process_tcp_stream(mut stream: TcpStream) {
                             TcpDataType::Blob => {
                             }
                             TcpDataType::Image => {
-                                let raw_data = BASE64_STANDARD.decode(data.data.as_bytes()).unwrap();
-                                let dynamic_image = image::load_from_memory(&raw_data).unwrap();
-                                let image_buffer = dynamic_image.to_rgba8();
+                                let bytes = data.data.as_bytes();
+                                println!("first 20 bytes: {}", std::str::from_utf8(&bytes[0..20]).unwrap());
+                                let width = std::str::from_utf8(&bytes[0..10]).unwrap();
+                                let height = std::str::from_utf8(&bytes[10..20]).unwrap();
+                                println!("width: {}, height: {}", width, height);
+
+                                let width = width.trim().parse::<u32>().unwrap();
+                                let height = height.trim().parse::<u32>().unwrap();
+                                
+                                let bytes = &bytes[20..];
+                                
+                                let raw_data = BASE64_STANDARD.decode(bytes).unwrap();
+                                let image_buffer = ImageBuffer::<image::Rgba<u8>, Vec<u8>>::from_raw(width, height, raw_data.to_vec()).unwrap();
                                 let image_uuid = Uuid::new_v4().to_string();
                                 let file_name: String = format!("{}.png", image_uuid);
                                 let _ = save_image(&image_buffer, file_name.clone(), image::ImageFormat::Png).await;
@@ -127,7 +138,7 @@ pub async fn process_tcp_stream(mut stream: TcpStream) {
                         }
                     }
                     Err(_) => {
-                        // println!("Failed to parse JSON data: {:?}", std::str::from_utf8(&json_data));
+                        println!("Failed to parse JSON data");
                     }
                 }
             }
