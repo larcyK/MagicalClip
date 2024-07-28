@@ -37,4 +37,11 @@
 
 .card-content {
     margin-top: 10px;
+    overflow: hidden;
+}
+
+.details-switch {
+    cursor: pointer;
+    margin-top: 10px;
+    text-align: center;
 }
