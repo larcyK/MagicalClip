@@ -88,10 +88,44 @@ fn split_json(data: &[u8]) -> Result<Vec<TcpData>, Box<dyn std::error::Error>> {
     Ok(jsons)
 }
 
-pub async fn process_tcp_stream(stream: TcpStream) {
-    let mut reader = BufReader::new(&stream);
-    let mut writer = BufWriter::new(&stream);
+fn start_tcp_stream(stream: &'static TcpStream) {
+    let reader = BufReader::new(stream);
+    let writer = BufWriter::new(stream);
 
+    tokio::spawn(async move {
+        start_tcp_writer(writer).await;
+    });
+    tokio::spawn(async move {
+        start_tcp_reader(reader).await;
+    });
+}
+
+async fn start_tcp_writer(mut writer: BufWriter<&TcpStream>) {
+    loop {
+        let mut data_to_send = Vec::new();
+        {
+            let mut state = APP_STATE.lock().await;
+            while let Some(data) = state.send_data_queue.pop() {
+                data_to_send.push(data);
+            }
+        }
+
+        for data in data_to_send {
+            let serialized_data = serde_json::to_string(&data).unwrap();
+            match writer.write_all(serialized_data.as_bytes()) {
+                Ok(_) => println!("Send data to server: {}", serialized_data),
+                Err(e) => {
+                    println!("Failed to write to socket; err = {:?}", e);
+                    break;
+                }
+            }
+        }
+
+        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+    }
+}
+
+async fn start_tcp_reader(mut reader: BufReader<&TcpStream>) {
     loop {
         let mut buffer = Vec::new();
         match reader.read_to_end(&mut buffer) {
@@ -127,26 +161,6 @@ pub async fn process_tcp_stream(stream: TcpStream) {
                 println!("Failed to read from socket; err = {:?}", e);
             }
         }
-
-        let mut data_to_send = Vec::new();
-        {
-            let mut state = APP_STATE.lock().await;
-            while let Some(data) = state.send_data_queue.pop() {
-                data_to_send.push(data);
-            }
-        }
-
-        for data in data_to_send {
-            let serialized_data = serde_json::to_string(&data).unwrap();
-            match writer.write_all(serialized_data.as_bytes()) {
-                Ok(_) => println!("Send data to server: {}", serialized_data),
-                Err(e) => {
-                    println!("Failed to write to socket; err = {:?}", e);
-                    break;
-                }
-            }
-        }
-
         tokio::time::sleep(std::time::Duration::from_secs(1)).await;
     }
 }
@@ -168,9 +182,9 @@ pub async fn tcp_connect(address: String, port: u16) -> Result<(), String> {
         }
         Err(err) => return Err(err.to_string()),
     };
-    tokio::spawn(async move {
-        process_tcp_stream(stream).await;
-    });
+    let stream: &'static TcpStream = Box::leak(Box::new(stream));
+    println!("Connected to server at {}", addr);
+    start_tcp_stream(&stream);
     Ok(())
 }
 
@@ -187,10 +201,9 @@ pub async fn start_listening() -> Result<(), String> {
         match listener.accept() {
 
             Ok((stream, addr)) => {
+                let stream: &'static TcpStream = Box::leak(Box::new(stream));
                 println!("Connected to server at {}", addr);
-                tokio::spawn(async move {
-                    process_tcp_stream(stream).await;
-                });
+                start_tcp_stream(&stream);
             }
             Err(e) => {
                 println!("Failed to connect to server; err = {:?}", e);
