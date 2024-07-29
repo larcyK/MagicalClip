@@ -134,6 +134,7 @@ async fn start_tcp_reader(mut reader: BufReader<&TcpStream>) {
                     println!("Connection closed by server");
                     // break;
                 }
+                print!("Received data from server: {:?}", std::str::from_utf8(&buffer));
                 let json_data = buffer.as_slice();
                 match serde_json::from_slice::<TcpData>(&json_data) {
                     Ok(data) => {
