@@ -1,9 +1,9 @@
-use std::str::EncodeUtf16;
+use std::{io::{BufReader, BufWriter, Read, Write}, net::{TcpListener, TcpStream}, str::EncodeUtf16};
 
 use arboard::ImageData;
 use base64::{prelude::BASE64_STANDARD, Engine};
 use serde::{Deserialize, Serialize};
-use tokio::{io::{AsyncWriteExt, BufReader}, net::{TcpListener, TcpStream}};
+use tokio::{io::{AsyncReadExt, AsyncWriteExt}};
 
 use crate::{clipboard::{add_text_clipboard_data, update_text_clipboard}, config::save_app_data, APP_STATE};
 
@@ -88,22 +88,25 @@ fn split_json(data: &[u8]) -> Result<Vec<TcpData>, Box<dyn std::error::Error>> {
     Ok(jsons)
 }
 
-pub async fn process_tcp_stream(mut stream: TcpStream) {
-    let mut buf_reader = BufReader::new(&mut stream);
+pub async fn process_tcp_stream(stream: TcpStream) {
+    let mut reader = BufReader::new(&stream);
+    let mut writer = BufWriter::new(&stream);
+
     loop {
-        let buf = &mut [0; 1 << 16];
-        match stream.try_read(buf) {
+        let mut buffer = Vec::new();
+        match reader.read_to_end(&mut buffer) {
             Ok(n) => {
                 if n == 0 {
                     println!("Connection closed by server");
-                    break;
+                    // break;
                 }
-                let json_data = buf[..n].to_vec();
+                let json_data = buffer.as_slice();
                 match serde_json::from_slice::<TcpData>(&json_data) {
                     Ok(data) => {
-                        println!("Received data from server: {:?}", data.data_type);
+                        // println!("Received data from server: {:?}", data.data_type);
                         match data.data_type {
                             TcpDataType::Text => {
+                                println!("Received text data (length: {})", data.data.len());
                                 add_text_clipboard_data(data.data.clone(), None).await;
                                 update_text_clipboard(data.data.clone()).await;
                             }
@@ -135,7 +138,7 @@ pub async fn process_tcp_stream(mut stream: TcpStream) {
 
         for data in data_to_send {
             let serialized_data = serde_json::to_string(&data).unwrap();
-            match stream.write_all(serialized_data.as_bytes()).await {
+            match writer.write_all(serialized_data.as_bytes()) {
                 Ok(_) => println!("Send data to server: {}", serialized_data),
                 Err(e) => {
                     println!("Failed to write to socket; err = {:?}", e);
@@ -153,7 +156,7 @@ pub async fn process_tcp_stream(mut stream: TcpStream) {
 pub async fn tcp_connect(address: String, port: u16) -> Result<(), String> {
     println!("Connecting to server at {}:{}", address, port);
     let addr = format!("{}:{}", address, port);
-    let stream = match TcpStream::connect(&addr).await {
+    let stream = match TcpStream::connect(&addr) {
         Ok(stream) => {
             {
                 let mut state = APP_STATE.lock().await;
@@ -175,13 +178,13 @@ pub async fn tcp_connect(address: String, port: u16) -> Result<(), String> {
 #[specta::specta]
 pub async fn start_listening() -> Result<(), String> {
     println!("Starting server...");
-    let listener = match TcpListener::bind("0.0.0.0:8080").await {
+    let listener = match TcpListener::bind("0.0.0.0:8080") {
         Ok(listener) => listener,
         Err(err) => return Err(err.to_string()),
     };
     
     loop {
-        match listener.accept().await {
+        match listener.accept() {
 
             Ok((stream, addr)) => {
                 println!("Connected to server at {}", addr);
